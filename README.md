@@ -11,6 +11,7 @@ Pitch materials for **Augur**’s polling / forecasting work on the **2026 Hunga
 | `headline_pitch_data.xlsx` | **Output** of the build — used by the plot script. |
 | `plot_pitch_deck.py` | Writes the two PNGs in `plots/`. |
 | `requirements.txt` | `pandas`, `matplotlib`, `openpyxl` |
+| `TurnoutAnalytics_PollingQuality_Reference.docx` | Supporting reference document (Word). |
 
 **Important:** the **true result** row uses **national party list** percentages (Wikipedia / NVI list vote), **not** constituency (SMD) vote shares.
 
