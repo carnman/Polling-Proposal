@@ -80,13 +80,13 @@ def _pivot_for_versions(df: pd.DataFrame) -> dict[str, pd.Series]:
 def _setup_matplotlib() -> None:
     plt.rcParams.update(
         {
-            "font.size": 13,
-            "axes.titlesize": 16,
-            "axes.labelsize": 14,
-            "xtick.labelsize": 12,
-            "ytick.labelsize": 12,
-            "legend.fontsize": 11,
-            "legend.title_fontsize": 12,
+            "font.size": 14,
+            "axes.titlesize": 17,
+            "axes.labelsize": 15,
+            "xtick.labelsize": 13,
+            "ytick.labelsize": 13,
+            "legend.fontsize": 12,
+            "legend.title_fontsize": 13,
             "figure.facecolor": "white",
             "axes.facecolor": "#FAFAFA",
             "axes.grid": True,
@@ -137,14 +137,14 @@ def plot_list_vote_comparison(data: dict[str, pd.Series], out: Path) -> None:
             zorder=3,
         )
     ax.set_xticks(x)
-    ax.set_xticklabels(PARTIES, fontweight="bold", fontsize=13)
+    ax.set_xticklabels(PARTIES, fontweight="bold", fontsize=14)
     ax.set_ylabel("Share of list vote (%)  —  decided / attributed responses", labelpad=10)
     ax.set_ylim(0, 62)
     title = (
         "2026 Hungarian parliamentary election\n"
         "National party list vote (headline shares — comparison to selected public polls)"
     )
-    ax.set_title(title, fontweight="bold", pad=16, fontsize=16)
+    ax.set_title(title, fontweight="bold", pad=16, fontsize=17)
     ax.legend(
         loc="upper right",
         frameon=True,
@@ -202,7 +202,7 @@ def plot_error_vs_official(
             zorder=3,
         )
     ax.set_xticks(x)
-    ax.set_xticklabels(PARTIES, fontweight="bold", fontsize=13)
+    ax.set_xticklabels(PARTIES, fontweight="bold", fontsize=14)
     ax.set_ylabel("Error vs. official list result (percentage points)", labelpad=10)
     m = 0.0
     for key, _, _ in present:
@@ -213,7 +213,7 @@ def plot_error_vs_official(
         "Headline error vs. official 12 Apr 2026 list result\n(negative = under-estimated, positive = over-estimated)",
         fontweight="bold",
         pad=16,
-        fontsize=16,
+        fontsize=17,
     )
     ax.legend(
         loc="upper right",
@@ -221,6 +221,7 @@ def plot_error_vs_official(
         framealpha=0.98,
         edgecolor="#CCCCCC",
         title="Model / poll (same labels as list-vote figure)",
+        title_fontsize=13,
     )
     fig.text(
         0.5,
