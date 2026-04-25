@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """
 Pitch-deck figures: 2026 Hungarian parliamentary election — *national party list* vote
-share. Uses Augur’s **likely-voter** internal scenario plus a small set of public
-benchmarks (including Atlas Intel, as reported by the pollster and secondary sources).
-
-Run after `build_headline_workbook.py` (or with `Headline Predictions (1).xlsx` only,
-if combined workbook is missing).
+share. Compares the official **list** result, Augur **likely-voter** model, 21 Kutatóközpont,
+Medián, and Alapjogokért Központ (government-aligned), per the English Wikipedia 2026 table.
 """
 
 from __future__ import annotations
@@ -23,35 +20,39 @@ PLOTS = ROOT / "plots"
 PLOTS.mkdir(exist_ok=True)
 
 DATA_CANDIDATES = [
+    ROOT / "headline_pitch_data.xlsx",
     ROOT / "Headline_Predictions_Combined_2026.xlsx",
     ROOT / "Headline Predictions (1).xlsx",
 ]
 
 PARTIES = ["Tisza", "Fidesz", "MH", "MKKP", "DK"]
 
-# Internal key in workbook → short legend label (deck order: official, ours, then peers)
-# Atlas Intel: fieldwork 5–10 Apr 2026, n≈1,587 (AtlasIntel.org); headline figures align with PolitPro.
+# Workbook Version string → legend label, color (order: result, us, then peers)
 PITCH_COMPARISON: list[tuple[str, str, str]] = [
-    ("True Election Result", "Official list vote (12 Apr 2026)", "#212121"),
+    (
+        "True Election Result",
+        "Official list vote (NVI; Wikipedia party-list %)",
+        "#212121",
+    ),
     (
         "Apr12 final Data, 80% TO, VLikely Voters",
         "Augur — likely-voter model (12 Apr 2026)",
         "#0D47A1",
     ),
     (
-        "Atlas Intel (10 Apr 2026) — reported aggregate",
-        "Atlas Intel (5–10 Apr 2026, n≈1,600)",
-        "#4A148C",
+        "Kutatóközpont (21 Research) (8–11 Apr 2026)",
+        "Kutatóközpont / 21 Research (8–11 Apr 2026)",
+        "#00695C",
     ),
     (
-        "Publicus (7–9 Apr 2026)",
-        "Publicus (7–9 Apr 2026)",
-        "#1B5E20",
+        "Medián (7–11 Apr 2026)",
+        "Medián (7–11 Apr 2026, n=2,286)",
+        "#6A1B9A",
     ),
     (
-        "McLaughlin & Associates (7 Apr 2026)",
-        "McLaughlin & Associates (7 Apr 2026)",
-        "#B71C1C",
+        "Alapjogokért Központ (28–29 Mar 2026)",
+        "Alapjogokért Központ (28–29 Mar; government-leaning)",
+        "#E65100",
     ),
 ]
 
@@ -105,24 +106,25 @@ def _resolve_data() -> Path:
     for p in DATA_CANDIDATES:
         if p.is_file():
             return p
-    raise SystemExit("No xlsx found. Add Headline_Predictions_Combined_2026.xlsx or Headline Predictions (1).xlsx.")
+    raise SystemExit(
+        "No data xlsx. Run: python3 build_headline_workbook.py  "
+        "(needs Headline Predictions (1).xlsx for the Augur likely-voter row)"
+    )
 
 
 def plot_list_vote_comparison(data: dict[str, pd.Series], out: Path) -> None:
     _setup_matplotlib()
     present = [
-        (k, lab, c)
-        for (k, lab, c) in PITCH_COMPARISON
-        if k in data
+        (k, lab, c) for (k, lab, c) in PITCH_COMPARISON if k in data
     ]
     n_series = len(present)
     n_parties = len(PARTIES)
     x = np.arange(n_parties, dtype=float)
-    total_w = 0.78
-    bar_w = min(total_w / max(n_series, 1), 0.16)
+    total_w = 0.82
+    bar_w = min(total_w / max(n_series, 1), 0.14)
     offset0 = -((n_series - 1) * bar_w) / 2
 
-    fig, ax = plt.subplots(figsize=(15.0, 7.2), facecolor="white")
+    fig, ax = plt.subplots(figsize=(16.0, 7.4), facecolor="white")
     for i, (key, label, color) in enumerate(present):
         s = data[key] * 100.0
         xpos = x + offset0 + i * bar_w
@@ -138,11 +140,14 @@ def plot_list_vote_comparison(data: dict[str, pd.Series], out: Path) -> None:
         )
     ax.set_xticks(x)
     ax.set_xticklabels(PARTIES, fontweight="bold", fontsize=14)
-    ax.set_ylabel("Share of list vote (%)  —  decided / attributed responses", labelpad=10)
-    ax.set_ylim(0, 62)
+    ax.set_ylabel(
+        "Share of national party list vote (%)  —  headline / decided",
+        labelpad=10,
+    )
+    ax.set_ylim(0, 60)
     title = (
         "2026 Hungarian parliamentary election\n"
-        "National party list vote (headline shares — comparison to selected public polls)"
+        "Party list results vs. our likely-voter model and selected public polls"
     )
     ax.set_title(title, fontweight="bold", pad=16, fontsize=17)
     ax.legend(
@@ -150,12 +155,12 @@ def plot_list_vote_comparison(data: dict[str, pd.Series], out: Path) -> None:
         frameon=True,
         framealpha=0.98,
         edgecolor="#CCCCCC",
-        title="Scenarios and benchmarks",
+        title="Benchmarks",
     )
     fig.text(
         0.5,
         0.02,
-        "Undecided / non-response excluded where pollsters provide headline shares. Public polls: see English Wikipedia 2026 polling table; Atlas Intel fieldwork 5–10 Apr 2026 (atlasintel.org).",
+        "“True” bars use official party list percentages (not constituency SMD shares). Public polls: English Wikipedia, Opinion polling for the 2026 Hungarian parliamentary election (verify against pollster releases).",
         ha="center",
         fontsize=9,
         color="#555555",
@@ -171,7 +176,7 @@ def plot_error_vs_official(
 ) -> None:
     _setup_matplotlib()
     if "True Election Result" not in data:
-        print("Error: need official result for error chart.", file=sys.stderr)
+        print("Error: need True Election Result for error chart.", file=sys.stderr)
         return
     true = data["True Election Result"] * 100.0
     present = [
@@ -182,14 +187,16 @@ def plot_error_vs_official(
     n_series = len(present)
     n_parties = len(PARTIES)
     x = np.arange(n_parties, dtype=float)
-    total_w = 0.78
-    bar_w = min(total_w / max(n_series, 1), 0.16)
+    total_w = 0.82
+    bar_w = min(total_w / max(n_series, 1), 0.14)
     offset0 = -((n_series - 1) * bar_w) / 2
 
-    fig, ax = plt.subplots(figsize=(15.0, 6.6), facecolor="white")
+    fig, ax = plt.subplots(figsize=(16.0, 6.8), facecolor="white")
     ax.axhline(0, color="#333", linewidth=1.1, zorder=2)
+    m = 0.0
     for i, (key, label, color) in enumerate(present):
         err = (data[key] * 100.0) - true
+        m = max(m, float(np.nanmax(np.abs(err))))
         xpos = x + offset0 + i * bar_w
         ax.bar(
             xpos,
@@ -203,14 +210,11 @@ def plot_error_vs_official(
         )
     ax.set_xticks(x)
     ax.set_xticklabels(PARTIES, fontweight="bold", fontsize=14)
-    ax.set_ylabel("Error vs. official list result (percentage points)", labelpad=10)
-    m = 0.0
-    for key, _, _ in present:
-        m = max(m, float(np.nanmax(np.abs((data[key] * 100.0) - true))))
-    lim = max(8.0, m * 1.12)
+    ax.set_ylabel("Error vs. official party list result (pp)", labelpad=10)
+    lim = max(6.0, m * 1.12)
     ax.set_ylim(-lim, lim)
     ax.set_title(
-        "Headline error vs. official 12 Apr 2026 list result\n(negative = under-estimated, positive = over-estimated)",
+        "Error vs. official party list vote (12 Apr 2026)\n(negative = under-estimated, positive = over-estimated)",
         fontweight="bold",
         pad=16,
         fontsize=17,
@@ -220,13 +224,13 @@ def plot_error_vs_official(
         frameon=True,
         framealpha=0.98,
         edgecolor="#CCCCCC",
-        title="Model / poll (same labels as list-vote figure)",
+        title="Model / poll",
         title_fontsize=13,
     )
     fig.text(
         0.5,
         0.02,
-        "Benchmark is the final national list vote (same party buckets as the model).",
+        "Reference is the final national party list share for each party (same buckets as the model).",
         ha="center",
         fontsize=9,
         color="#555555",
@@ -242,7 +246,7 @@ def main() -> None:
     data = _pivot_for_versions(df)
     for key, _, _ in PITCH_COMPARISON:
         if key not in data:
-            print(f"Missing: {key}", file=sys.stderr)
+            print(f"Missing data row: {key}", file=sys.stderr)
     out1 = PLOTS / "2026_hungary_list_vote_pitch.png"
     out2 = PLOTS / "2026_hungary_list_vote_error_pitch.png"
     plot_list_vote_comparison(data, out1)

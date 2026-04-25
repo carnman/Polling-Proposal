@@ -1,33 +1,32 @@
 # Polling Proposal
 
-Materials for **Augur Technologies**’ polling / forecasting pitch: national **party list** vote shares for the **2026 Hungarian parliamentary election** (12 April 2026), with emphasis on the internal **likely-voter** model run (12 Apr 2026) versus a small set of public benchmarks.
+Pitch materials for **Augur**’s polling / forecasting work on the **2026 Hungarian parliamentary election** (12 April 2026).
 
-## What is in this repo
+## What’s in the repo (minimal set)
 
-- **`Headline Predictions (1).xlsx`** — original internal extracts (true list result + model scenarios, plus seat columns in some rows).
-- **`build_headline_workbook.py`** — builds **`Headline_Predictions_Combined_2026.xlsx`**: transfers Augur runs and the official result, and appends a curated set of public polls (many from the English Wikipedia *Opinion polling for the 2026 Hungarian parliamentary election* table) plus an **Atlas Intel** row (5–10 Apr 2026 fieldwork; headline numbers per AtlasIntel.org / common aggregations).
-- **`plot_pitch_deck.py`** — generates the **pitch-deck** figures in **`plots/`** (large type, high contrast, few comparators: official result, **Augur likely-voter** scenario, Atlas Intel, Publicus, McLaughlin).
-- **`party_sahres (2).ipynb`** — exploratory notebook (constituency work is out of scope for the pitch figures).
+| Item | Role |
+|------|------|
+| `build_headline_workbook.py` | Builds `headline_pitch_data.xlsx`: **official party-list** true result, **likely-voter** internal row (from the source xlsx), and **three** public polls (21 Kutatóközpont, Medián, Alapjogokért Központ) per the English **Wikipedia** 2026 polling table. |
+| `Headline Predictions (1).xlsx` | Source for the **Augur likely-voter** scenario only (one internal model run). **Required** to rebuild. |
+| `headline_pitch_data.xlsx` | **Output** of the build — used by the plot script. |
+| `plot_pitch_deck.py` | Writes the two PNGs in `plots/`. |
+| `requirements.txt` | `pandas`, `matplotlib`, `openpyxl` |
 
-## Regenerate the pitch figures
+**Important:** the **true result** row uses **national party list** percentages (Wikipedia / NVI list vote), **not** constituency (SMD) vote shares.
+
+## Rebuild data and figures
 
 ```bash
 python3 -m pip install -r requirements.txt
 python3 build_headline_workbook.py
-python3 plot_pitch_deck.py
+MPLCONFIGDIR=/tmp/mpl python3 plot_pitch_deck.py
 ```
 
-Optional: `PITCH_DATA=path/to/sheet.xlsx python3 plot_pitch_deck.py`
+## Outputs
 
-## Output charts
-
-| File | Content |
-|------|---------|
-| `plots/2026_hungary_list_vote_pitch.png` | National **list** vote (headline shares) |
-| `plots/2026_hungary_list_vote_error_pitch.png` | Error in pp vs. official list result |
-
-These are **not** seat projections. Small-party buckets follow the same five party columns as the internal sheet.
+- `plots/2026_hungary_list_vote_pitch.png` — list vote comparison  
+- `plots/2026_hungary_list_vote_error_pitch.png` — error vs. official list result (pp)  
 
 ## Disclaimer
 
-Public poll numbers are compiled for illustration; always cite original pollsters. Wikipedia tables can contain transcription errors—verify before external publication.
+Public numbers are as transcribed from Wikipedia; before external use, confirm against each pollster’s published tables.

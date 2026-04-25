@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Assemble a new headline-predictions workbook: Augur (internal) + election result
-+ curated public pollsters. Numbers in WIKI_POLLS are taken from the English
-Wikipedia table “Opinion polling for the 2026 Hungarian parliamentary election”
-(2024–26 section; fieldwork order Fidesz, Tisza, MH, DK, MKKP, Others, Lead),
-interpreted in row order. Cross-check a few rows if you republish.
+Build `headline_pitch_data.xlsx` for the pitch deck.
+
+- **True result:** national *party-list* vote shares (12 Apr 2026), not constituency
+  splits (per Wikipedia election infobox / NVI party-list totals).
+- **Internal:** Augur likely-voter run from `Headline Predictions (1).xlsx`.
+- **Public (selected):** 21 Kutatóközpont (8–11 Apr 2026), Medián (7–11 Apr 2026),
+  Alapjogokért Központ (28–29 Mar 2026, government-leaning) — figures per English
+  Wikipedia 2026 polling table; verify before publication.
 """
 
 from __future__ import annotations
@@ -15,65 +18,76 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
-OUT_XLSX = ROOT / "Headline_Predictions_Combined_2026.xlsx"
+OUT_XLSX = ROOT / "headline_pitch_data.xlsx"
 SOURCE = ROOT / "Headline Predictions (1).xlsx"
+
 PARTIES = ["Tisza", "Fidesz", "MH", "MKKP", "DK"]
 
-# --- Curated 2024–26 polls: (label, fidesz, tisza, mi_hazank, dk, mkkp, others_or_None)
-# Percentages; None or NaN in others means column absent / en-dash. If numeric, it is
-# the “Other” bucket from Wikipedia: we reallocate 2/3 to MKKP+DK / 1/3 to MH in tiny amounts
-# (see _to_long) so the five main parties stay in one framework.
-# Extra pollster not on wiki page: PolitPro/Atlas style headline, clearly marked.
-WIKI_POLLS: list[tuple] = [
-    # Late campaign / 2026 (Wikipedia 2026 election period table, reverse chrono in article)
-    ("Publicus (7–9 Apr 2026)", 39, 52, 2, 5, 2, None),
-    ("McLaughlin & Associates (7 Apr 2026)", 45.4, 39.7, 4.6, 7.5, 2.2, 0.6),
-    ("Iránytű Institute (31 Mar–4 Apr 2026)", 40, 51, 1, 4, 4, 0.0),
-    ("IDEA (29 Mar–4 Apr 2026)", 37, 50, 4, 5, 2, 2.0),
-    ("Publicus (27–30 Mar 2026)", 40, 49, 3, 6, 3, None),
-    ("Alapjogokért Központ (28–29 Mar 2026)", 50, 42, 2, 5, 1, None),
-    ("Závecz Research (24–28 Mar 2026)", 38, 51, 3, 5, 3, None),
+# Official party-list % (Wikipedia: 2026 election results, party-list column;
+# Tisza / Fidesz–KDNP / MH / DK / MKKP). Sum < 100 due to other lists — normalize to 1.
+_OFFICIAL_LIST_PCT: dict[str, float] = {
+    "Tisza": 53.18,
+    "Fidesz": 38.61,
+    "MH": 5.63,
+    "DK": 1.10,
+    "MKKP": 0.82,
+}
+
+# (label, fidesz, tisza, mh, dk, mkkp, others_or_None) — % among headline party columns
+# Order matches Wikipedia 2026 table: Fidesz, Tisza, MH, DK, MKKP, [Others]
+PUBLIC_POLLS: list[tuple] = [
+    # en.wikipedia: 2026 election period table (late campaign). Label must not start
+    # with digits or Excel may mangle the cell when opening the xlsx.
     (
-        "21 Kutatóközpont (23–28 Mar 2026) — enwiki",
-        37,
-        56,
-        1,
-        5,
-        1,
+        "Kutatóközpont (21 Research) (8–11 Apr 2026)",
+        38.0,
+        55.0,
+        5.0,
+        1.0,
+        1.0,
         None,
     ),
-    ("XXI. Század (26–27 Mar 2026)", 46, 41, 5, 6, 2, None),
-    ("Republikon (23–26 Mar 2026)", 40, 49, 2, 5, 4, None),
-    ("Nézőpont (23–24 Mar 2026)", 46, 40, 3, 8, 3, None),
-    ("Medián (17–20 Mar 2026) — enwiki", 35, 58, 1, 4, 2, None),
-    ("Minerva (10–11 Mar 2026) — enwiki", 40.1, 51.3, 1.4, 5.5, 1.7, None),
-    ("7–9 Mar 2026 XXI. Század", 46, 41, 4, 6, 3, None),
-    ("21 Kutatóközpont (2–6 Mar 2026)", 39, 53, 2, 5, 1, None),
-    ("IDEA (28 Feb–6 Mar 2026)", 37, 49, 5, 6, 2, 1.0),
-    ("Závecz Research (22–28 Feb 2026)", 38, 50, 3, 7, 2, None),
-    ("Minerva (20–25 Feb 2026) — enwiki", 41.5, 50.0, 2.8, 4.1, 1.7, None),
-    ("Nézőpont (20–25 Feb 2026)", 45, 40, 3, 8, 4, None),
-    ("Publicus (24–28 Feb 2026)", 39, 47, 4, 6, 4, None),
-    ("Medián (18–23 Feb 2026) — enwiki", 35, 55, 2, 6, 2, None),
-    ("Nézőpont (9–11 Feb 2026)", 46, 40, 4, 7, 3, 0.0),
-    ("Alapjogokért Központ (2–5 Feb 2026)", 49, 42, 2, 5, 2, 0.0),
-    ("IDEA (31 Jan–6 Feb 2026)", 38, 48, 5, 5, 3, 1.0),
-    ("IDEA (31 Dec 2025–6 Jan 2026) — enwiki", 38, 48, 5, 4, 3, 0.0),
-    ("Publicus (16–20 Dec 2025) — enwiki", 40, 48, 5, 5, 3, None),
-    ("Nézőpont (5–7 Jan 2026)", 47, 40, 3, 6, 4, 0.0),
-    # Atlas Intel — national list poll (fieldwork 5–10 Apr 2026, n=1,587). Headline
-    # shares as reported by AtlasIntel.org and secondary aggregators; not all rows
-    # appear in the en.wikipedia 2026 table, but the figure matches PolitPro’s summary.
     (
-        "Atlas Intel (10 Apr 2026) — reported aggregate",
-        39.3,
-        52.1,
-        5.1,
-        1.5,
+        "Medián (7–11 Apr 2026)",
+        37.9,
+        55.5,
+        3.9,
         1.4,
-        0.6,
+        1.3,
+        None,
+    ),
+    (
+        "Alapjogokért Központ (28–29 Mar 2026)",
+        50.0,
+        42.0,
+        5.0,
+        2.0,
+        1.0,
+        None,
     ),
 ]
+
+INTERNAL_VERSION = "Apr12 final Data, 80% TO, VLikely Voters"
+
+
+def _normalize_party_shares(pct: dict[str, float]) -> dict[str, float]:
+    s = sum(pct[p] for p in PARTIES)
+    if s <= 0:
+        raise ValueError("Invalid official percentages")
+    return {p: pct[p] / s for p in PARTIES}
+
+
+def _official_to_long() -> list[dict]:
+    norm = _normalize_party_shares(_OFFICIAL_LIST_PCT)
+    return [
+        {
+            "Version": "True Election Result",
+            "Party": p,
+            "Pct": norm[p],
+            "Source": "Party-list result (12 Apr 2026), per Wikipedia / NVI",
+        }
+        for p in PARTIES
+    ]
 
 
 def _to_long(
@@ -101,55 +115,56 @@ def _to_long(
         "MKKP": mkk,
         "DK": dk,
     }
-    return [{"Version": version, "Party": p, "Pct": m[p], "Source": "Wikipedia / public"} for p in PARTIES]
+    return [
+        {
+            "Version": version,
+            "Party": p,
+            "Pct": m[p],
+            "Source": "Wikipedia 2026 polling table",
+        }
+        for p in PARTIES
+    ]
 
 
-def load_internal_augur_and_true() -> pd.DataFrame:
+def _load_augur_likely() -> list[dict]:
     raw = pd.read_excel(SOURCE)
-    vcol = (
+    raw["Version"] = (
         raw["Version"].astype(str).str.strip().str.replace(r"^\d+\s*", "", regex=True)
     )
-    raw = raw.copy()
-    raw["Version"] = vcol
-    # Keep: true result, all Apr12 scenarios that have Pct
-    want_prefix = [
-        "True Election Result",
-        "Apr12 final Data, 74% TO, Base Case",
-        "Apr12 final Data, 80% TO, VLikely Voters",
-        "Apr12 final Data, 80% TO",
-    ]
-    rows = []
-    for w in want_prefix:
-        part = raw[raw["Version"] == w]
-        for _, r in part.iterrows():
-            if pd.isna(r.get("Pct")):
-                continue
-            rows.append(
-                {
-                    "Version": w,
-                    "Party": r["Party"],
-                    "Pct": float(r["Pct"]),
-                    "Source": "Augur (internal) / OEVK extract" if w != "True Election Result" else "Official result",
-                }
-            )
-    return pd.DataFrame(rows)
+    part = raw[raw["Version"] == INTERNAL_VERSION]
+    rows: list[dict] = []
+    for _, r in part.iterrows():
+        if pd.isna(r.get("Pct")):
+            continue
+        rows.append(
+            {
+                "Version": INTERNAL_VERSION,
+                "Party": r["Party"],
+                "Pct": float(r["Pct"]),
+                "Source": "Augur internal (likely-voter scenario, 12 Apr 2026 run)",
+            }
+        )
+    if not rows:
+        raise SystemExit(
+            f"No rows for '{INTERNAL_VERSION}' in {SOURCE}. Restore the xlsx or update INTERNAL_VERSION."
+        )
+    return rows
 
 
 def build() -> None:
-    parts: list[pd.DataFrame] = []
-    parts.append(load_internal_augur_and_true())
-    for label, a, b, c, d, e, o in WIKI_POLLS:
-        parts.append(pd.DataFrame(_to_long(label, a, b, c, d, e, o)))
-    out = pd.concat(parts, ignore_index=True)
-    # Widen: optional seat columns from original for internal rows (optional, leave NaN for wiki)
-    for col in [
-        "Direct Mandates",
-        "List Mandates",
-        "Total Mandates",
-    ]:
+    parts: list[list[dict]] = []
+    parts.append(_official_to_long())
+    parts.append(_load_augur_likely())
+    for label, a, b, c, d, e, o in PUBLIC_POLLS:
+        parts.append(_to_long(label, a, b, c, d, e, o))
+    out = pd.DataFrame(
+        [row for block in parts for row in block],
+    )
+    for col in ("Direct Mandates", "List Mandates", "Total Mandates"):
         out[col] = np.nan
     out.to_excel(OUT_XLSX, index=False)
-    print(f"Wrote {OUT_XLSX}  ({len(out)} rows, {out['Version'].nunique()} versions).")
+    n_v = out["Version"].nunique()
+    print(f"Wrote {OUT_XLSX}  ({len(out)} rows, {n_v} versions).")
 
 
 if __name__ == "__main__":
